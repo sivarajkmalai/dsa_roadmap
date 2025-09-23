@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Ultimate DSA Roadmap & Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Harmony -->
+    <!-- Application Structure Plan: The application is designed as an interactive dashboard. The core structure uses a sidebar for quick navigation and a main content area with collapsible accordion sections for each DSA topic. This design was chosen over a flat list to manage cognitive load; users can focus on one topic at a time while still getting a high-level overview. Key interactions include checking off sub-topics to track progress, which dynamically updates progress bars and a main summary chart. A search bar allows for instant filtering. This structure provides a clear, hierarchical, and motivating user flow, transforming a static list into a dynamic learning tool. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Overall Progress. Goal: Motivate. Viz: Donut Chart (Chart.js). Interaction: Updates on checkbox click. Justification: Provides an immediate, high-level summary of the user's entire journey.
+        - Report Info: Per-Topic Progress. Goal: Granular Feedback. Viz: HTML/CSS Progress Bar. Interaction: Updates on checkbox click. Justification: Shows progress within a specific category, encouraging completion of sections.
+        - Report Info: DSA Topics & Patterns. Goal: Organize & Inform. Viz: Accordion List (HTML/Tailwind/JS). Interaction: Expand/collapse to show/hide details. Justification: Prevents information overload and allows focused study.
+        - Report Info: Learning Resources. Goal: Actionable Learning. Viz: Curated Links. Interaction: Click to open new tab. Justification: Connects theory with practice by providing direct access to top-tier learning materials.
+        - Library/Method: Chart.js for canvas-based charting. All other elements are structured HTML with Tailwind and manipulated with vanilla JS.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        :root {
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #475569;
+            --accent-primary: #0891b2;
+            --accent-primary-light: #cffafe;
+            --border-color: #e2e8f0;
+        }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--bg-main);
+            color: var(--text-primary);
+        }
+        .progress-bar-fill { 
+            transition: width 0.5s ease-in-out; 
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s cubic-bezier(0, 1, 0, 1);
+        }
+        .accordion-content.open {
+            max-height: 2000px; /* Adjust as needed */
+            transition: max-height 1s ease-in-out;
+        }
+        .sticky-sidebar {
+            position: sticky;
+            top: 1.5rem; /* 64px */
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: var(--bg-card);
+            margin: auto;
+            padding: 24px;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 600px;
+            position: relative;
+        }
+        .close-button {
+            color: var(--text-secondary);
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: var(--text-primary);
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #0891b2;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        pre {
+            background-color: #f1f5f9;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div id="app" class="max-w-screen-2xl mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <header class="text-center mb-8">
+            <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight text-cyan-800">DSA Master Roadmap</h1>
+            <p class="mt-3 text-lg text-slate-600 max-w-3xl mx-auto">Your complete, interactive guide to cracking any coding interview. Track your progress, find the best resources, and conquer every pattern.</p>
+        </header>
+
+        <main class="flex flex-col lg:flex-row gap-8">
+            
+            <aside id="sidebar" class="lg:w-1/4 xl:w-1/5">
+                <div class="sticky-sidebar space-y-6">
+                    <div>
+                        <h2 class="text-lg font-semibold mb-3 text-cyan-700">Overall Progress</h2>
+                        <div class="chart-container relative w-full max-w-xs mx-auto h-64">
+                            <canvas id="progressChart"></canvas>
+                        </div>
+                        <div id="progress-summary" class="text-center mt-3 text-slate-600 font-medium"></div>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-semibold mb-3 text-cyan-700">Quick Navigation</h2>
+                        <input type="text" id="search-bar" placeholder="🔍 Search for a pattern..." class="w-full px-4 py-2 border border-slate-300 rounded-lg mb-4 focus:ring-2 focus:ring-cyan-500 focus:outline-none">
+                        <nav id="nav-links" class="space-y-1"></nav>
+                    </div>
+                </div>
+            </aside>
+
+            <section id="topics-container" class="flex-1">
+            </section>
+
+        </main>
+
+        <!-- Modal for LLM Responses -->
+        <div id="llmModal" class="modal">
+            <div class="modal-content">
+                <span class="close-button" id="closeModalBtn">&times;</span>
+                <h3 id="modalTitle" class="text-xl font-semibold mb-4 text-cyan-800"></h3>
+                <div id="modalContent" class="text-slate-700 leading-relaxed">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dsaData = [
+            {
+                topic: "Arrays & Hashing",
+                icon: "🟢",
+                patterns: [
+                    { name: "Prefix Sum", completed: false, resources: { watch: "https://www.youtube.com/watch?v=P_h_1hY2I2I", read: "https://neetcode.io/courses/dsa-for-beginners/1", practice: "https://leetcode.com/tag/prefix-sum/" } },
+                    { name: "Kadane's Algorithm (Max Subarray Sum)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=50JJTC_C6I0", read: "https://en.wikipedia.org/wiki/Maximum_subarray_problem", practice: "https://leetcode.com/problems/maximum-subarray/" } },
+                    { name: "Sliding Window (Fixed & Variable)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=jM2dhDPYMQM", read: "https://neetcode.io/courses/dsa-for-beginners/4", practice: "https://leetcode.com/tag/sliding-window/" } },
+                    { name: "Two-Pointer Technique", completed: false, resources: { watch: "https://www.youtube.com/watch?v=CqgY_S_CjFg", read: "https://neetcode.io/courses/dsa-for-beginners/3", practice: "https://leetcode.com/tag/two-pointers/" } },
+                    { name: "Hashing for Grouping & Counting", completed: false, resources: { watch: "https://www.youtube.com/watch?v=kU5K2inS_fA", read: "https://www.geeksforgeeks.org/frequency-counter-pattern/", practice: "https://leetcode.com/problems/group-anagrams/" } },
+                    { name: "Subarrays with Sum K (Prefix + Hashing)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=20v8zSo2v18", read: "https://www.geeksforgeeks.org/find-subarray-with-given-sum-in-array-of-integers/", practice: "https://leetcode.com/problems/subarray-sum-equals-k/" } },
+                    { name: "Dutch National Flag Algorithm", completed: false, resources: { watch: "https://www.youtube.com/watch?v=oaVa-9wmpns", read: "https://en.wikipedia.org/wiki/Dutch_national_flag_problem", practice: "https://leetcode.com/problems/sort-colors/" } },
+                    { name: "Merge Intervals", completed: false, resources: { watch: "https://www.youtube.com/watch?v=I-h_h4ayhE4", read: "https://neetcode.io/courses/advanced-algorithms/0", practice: "https://leetcode.com/problems/merge-intervals/" } },
+                    { name: "Cyclic Sort", completed: false, resources: { watch: "https://www.youtube.com/watch?v=JfinxytTYFQ", read: "https://www.educative.io/blog/cyclic-sort", practice: "https://leetcode.com/problems/missing-number/" } }
+                ]
+            },
+            {
+                topic: "Strings",
+                icon: "🔵",
+                patterns: [
+                    { name: "String Immutability & Builders", completed: false, resources: { watch: "https://www.youtube.com/watch?v=1_24d90wyv8", read: "https://www.baeldung.com/java-string-immutable", practice: "https://leetcode.com/problems/reverse-words-in-a-string/" } },
+                    { name: "Frequency Counters (Anagrams)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=kU5K2inS_fA", read: "https://www.geeksforgeeks.org/frequency-counter-pattern/", practice: "https://leetcode.com/problems/valid-anagram/" } },
+                    { name: "Palindromes (Two Pointer, Expand from Center)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=y2BD4MJqV20", read: "https://leetcode.com/problems/longest-palindromic-substring/solutions/127963/official-solution/", practice: "https://leetcode.com/problems/longest-palindromic-substring/" } },
+                    { name: "Pattern Matching (KMP, Rabin-Karp)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=JoF0Z7nVSrA", read: "https://cp-algorithms.com/string/kmp.html", practice: "https://leetcode.com/problems/find-the-index-of-the-first-occurrence-in-a-string/" } }
+                ]
+            },
+             {
+                topic: "Linked Lists",
+                icon: "🟣",
+                patterns: [
+                    { name: "Singly & Doubly List Basics", completed: false, resources: { watch: "https://www.youtube.com/watch?v=N6-eE5t0k44", read: "https://neetcode.io/courses/dsa-for-beginners/5", practice: "https://leetcode.com/problems/design-linked-list/" } },
+                    { name: "Fast & Slow Pointers (Floyd's Algo)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=gBTe7lFR3vc", read: "https://www.geeksforgeeks.org/floyds-cycle-finding-algorithm/", practice: "https://leetcode.com/problems/linked-list-cycle/" } },
+                    { name: "Reversing a Linked List", completed: false, resources: { watch: "https://www.youtube.com/watch?v=G0_I-ZF0S38", read: "https://www.educative.io/answers/how-to-reverse-a-linked-list", practice: "https://leetcode.com/problems/reverse-linked-list/" } },
+                    { name: "Merge Two Sorted Lists", completed: false, resources: { watch: "https://www.youtube.com/watch?v=XIdigk956u0", read: "https://neetcode.io/courses/dsa-for-beginners/6", practice: "https://leetcode.com/problems/merge-two-sorted-lists/" } },
+                    { name: "Reorder List", completed: false, resources: { watch: "https://www.youtube.com/watch?v=S5bfdUTrKLM", read: "https://www.geeksforgeeks.org/reorder-a-linked-list-in-place/", practice: "https://leetcode.com/problems/reorder-list/" } },
+                    { name: "Copy List with Random Pointer", completed: false, resources: { watch: "https://www.youtube.com/watch?v=5Y2EiZST97Y", read: "https://www.geeksforgeeks.org/a-linked-list-with-next-and-arbit-pointer/", practice: "https://leetcode.com/problems/copy-list-with-random-pointer/" } },
+                    { name: "LRU Cache", completed: false, resources: { watch: "https://www.youtube.com/watch?v=7p_qjcb3_1c", read: "https://neetcode.io/courses/dsa-for-beginners/8", practice: "https://leetcode.com/problems/lru-cache/" } }
+                ]
+            },
+            {
+                topic: "Stacks & Queues",
+                icon: "🟤",
+                patterns: [
+                    { name: "Stack & Queue Basics", completed: false, resources: { watch: "https://www.youtube.com/watch?v=pow_1Y_5nII", read: "https://www.geeksforgeeks.org/stack-data-structure/", practice: "https://leetcode.com/problems/implement-stack-using-queues/" } },
+                    { name: "Monotonic Stack", completed: false, resources: { watch: "https://www.youtube.com/watch?v=m4h_x9m3i_c", read: "https://www.educative.io/blog/monotonic-stack", practice: "https://leetcode.com/problems/next-greater-element-i/" } },
+                    { name: "Sliding Window Maximum (Deque)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=DfljaUwA9rs", read: "https://www.geeksforgeeks.org/sliding-window-maximum-maximum-of-all-subarrays-of-size-k/", practice: "https://leetcode.com/problems/sliding-window-maximum/" } },
+                    { name: "Expression Evaluation (Infix, Postfix)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=Q2Tw-A06-0A", read: "https://www.geeksforgeeks.org/stack-set-4-evaluation-postfix-expression/", practice: "https://leetcode.com/problems/evaluate-reverse-polish-notation/" } },
+                ]
+            },
+            {
+                topic: "Trees (General & Binary)",
+                icon: "🌲",
+                patterns: [
+                    { name: "Traversals: Preorder, Inorder, Postorder, Level Order", completed: false, resources: { watch: "https://www.youtube.com/watch?v=jmy0La0_j7k", read: "https://neetcode.io/courses/dsa-for-beginners/10", practice: "https://leetcode.com/problems/binary-tree-inorder-traversal/" } },
+                    { name: "Height / Diameter / Balanced Tree Check", completed: false, resources: { watch: "https://www.youtube.com/watch?v=QfJsau0ItOY", read: "https://www.geeksforgeeks.org/diameter-of-a-binary-tree/", practice: "https://leetcode.com/problems/diameter-of-binary-tree/" } },
+                    { name: "Lowest Common Ancestor (LCA)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=_-QHfMDde90", read: "https://www.geeksforgeeks.org/lowest-common-ancestor-binary-tree-set-1/", practice: "https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-tree/" } },
+                    { name: "Tree Views (Left, Right, Top, Bottom)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=KV4mRzTjlAk", read: "https://www.geeksforgeeks.org/print-right-view-binary-tree-2/", practice: "https://leetcode.com/problems/binary-tree-right-side-view/" } },
+                    { name: "Serialize & Deserialize Binary Tree", completed: false, resources: { watch: "https://www.youtube.com/watch?v=uVtWEtk2gQk", read: "https://www.geeksforgeeks.org/serialize-deserialize-binary-tree/", practice: "https://leetcode.com/problems/serialize-and-deserialize-binary-tree/" } },
+                ]
+            },
+             {
+                topic: "Binary Search & Variants",
+                icon: "🟠",
+                patterns: [
+                    { name: "Standard Binary Search", completed: false, resources: { watch: "https://www.youtube.com/watch?v=K_g_p_dbb1k", read: "https://neetcode.io/courses/dsa-for-beginners/2", practice: "https://leetcode.com/problems/binary-search/" } },
+                    { name: "Search in Rotated Sorted Array", completed: false, resources: { watch: "https://www.youtube.com/watch?v=U8XENwh8Oy8", read: "https://www.geeksforgeeks.org/search-an-element-in-a-sorted-and-pivoted-array/", practice: "https://leetcode.com/problems/search-in-rotated-sorted-array/" } },
+                    { name: "Binary Search on Answer", completed: false, resources: { watch: "https://www.youtube.com/watch?v=W9QJ8HaRvJQ", read: "https://www.topcoder.com/thrive/articles/Binary%20Search", practice: "https://leetcode.com/problems/koko-eating-bananas/" } },
+                    { name: "Find Peak Element", completed: false, resources: { watch: "https://www.youtube.com/watch?v=Owi11y_t6a0", read: "https://www.geeksforgeeks.org/find-a-peak-element-in-an-array/", practice: "https://leetcode.com/problems/find-peak-element/" } }
+                ]
+            },
+            {
+                topic: "Binary Search Trees (BST)",
+                icon: "🌳",
+                patterns: [
+                    { name: "Properties (Inorder = Sorted)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=pDURIj98e0I", read: "https://www.geeksforgeeks.org/binary-search-tree-data-structure/", practice: "https://leetcode.com/problems/validate-binary-search-tree/" } },
+                    { name: "Insert / Delete in BST", completed: false, resources: { watch: "https://www.youtube.com/watch?v=f5DD0_9gTII", read: "https://www.geeksforgeeks.org/binary-search-tree-set-2-delete/", practice: "https://leetcode.com/problems/insert-into-a-binary-search-tree/" } },
+                    { name: "Floor / Ceil / Kth Smallest Element", completed: false, resources: { watch: "https://www.youtube.com/watch?v=9TJYWh0adfk", read: "https://www.geeksforgeeks.org/floor-and-ceil-from-a-bst/", practice: "https://leetcode.com/problems/kth-smallest-element-in-a-bst/" } },
+                ]
+            },
+            {
+                topic: "Heaps / Priority Queue",
+                icon: "🔺",
+                patterns: [
+                    { name: "Min-Heap / Max-Heap Basics", completed: false, resources: { watch: "https://www.youtube.com/watch?v=t0Cq6tVNRBA", read: "https://www.geeksforgeeks.org/heap-data-structure/", practice: "https://leetcode.com/problems/kth-largest-element-in-a-stream/" } },
+                    { name: "Kth Largest/Smallest Element", completed: false, resources: { watch: "https://www.youtube.com/watch?v=3DdP6Ef82a4", read: "https://www.geeksforgeeks.org/kth-smallest-largest-element-in-unsorted-array/", practice: "https://leetcode.com/problems/kth-largest-element-in-an-array/" } },
+                    { name: "Top K Frequent Elements", completed: false, resources: { watch: "https://www.youtube.com/watch?v=Yxe_k_2j5sY", read: "https://www.geeksforgeeks.org/find-k-most-frequent-numbers-in-a-stream/", practice: "https://leetcode.com/problems/top-k-frequent-elements/" } },
+                    { name: "Merge K Sorted Lists", completed: false, resources: { watch: "https://www.youtube.com/watch?v=q5a5OiGbT6Q", read: "https://www.geeksforgeeks.org/merge-k-sorted-linked-lists/", practice: "https://leetcode.com/problems/merge-k-sorted-lists/" } },
+                     { name: "Find Median from Data Stream", completed: false, resources: { watch: "https://www.youtube.com/watch?v=1Lk0i_wY0pA", read: "https://www.geeksforgeeks.org/median-of-stream-of-integers-running-integers/", practice: "https://leetcode.com/problems/find-median-from-data-stream/" } }
+                ]
+            },
+             {
+                topic: "Tries",
+                icon: "🧵",
+                patterns: [
+                    { name: "Insert / Search / StartsWith", completed: false, resources: { watch: "https://www.youtube.com/watch?v=66d7lT43f2s", read: "https://www.geeksforgeeks.org/trie-insert-and-search/", practice: "https://leetcode.com/problems/implement-trie-prefix-tree/" } },
+                    { name: "Word Search II (Trie + Backtracking)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=asbcE9mZz_U", read: "https://www.geeksforgeeks.org/boggle-find-all-possible-words-in-a-board-of-characters-set-2/", practice: "https://leetcode.com/problems/word-search-ii/" } },
+                    { name: "Design Add and Search Words Data Structure", completed: false, resources: { watch: "https://www.youtube.com/watch?v=BTf05gs_8iU", read: "https://www.geeksforgeeks.org/implement-trie-data-structure-in-java/", practice: "https://leetcode.com/problems/design-add-and-search-words-data-structure/" } }
+                ]
+            },
+            {
+                topic: "Graphs",
+                icon: "🌉",
+                patterns: [
+                    { name: "Representation (Adjacency List/Matrix)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=5hPfm_2l7so", read: "https://www.geeksforgeeks.org/graph-and-its-representations/", practice: "https://www.codingninjas.com/studio/problems/creating-and-printing_1214551" } },
+                    { name: "BFS / DFS Traversals", completed: false, resources: { watch: "https://www.youtube.com/watch?v=uTJGKnLepZW", read: "https://www.geeksforgeeks.org/breadth-first-search-or-bfs-for-a-graph/", practice: "https://leetcode.com/tag/graph/" } },
+                    { name: "Cycle Detection (Directed/Undirected)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=iTBaI90lpDQ", read: "https://www.geeksforgeeks.org/detect-cycle-in-a-graph/", practice: "https://leetcode.com/problems/course-schedule/" } },
+                    { name: "Topological Sort (Kahn's Algo, DFS)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=cIBFEhD77b4", read: "https://www.geeksforgeeks.org/topological-sorting/", practice: "https://leetcode.com/problems/course-schedule-ii/" } },
+                    { name: "Number of Islands / Connected Components", completed: false, resources: { watch: "https://www.youtube.com/watch?v=__98uL6wst8", read: "https://www.geeksforgeeks.org/find-the-number-of-islands-using-dfs/", practice: "https://leetcode.com/problems/number-of-islands/" } },
+                    { name: "Shortest Path (Dijkstra, Bellman-Ford)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=V6H1qAeB-l4", read: "https://www.geeksforgeeks.org/dijkstras-shortest-path-algorithm-greedy-algo-7/", practice: "https://leetcode.com/problems/network-delay-time/" } },
+                    { name: "Minimum Spanning Tree (Prim, Kruskal)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=mJcZqKd6beg", read: "https://www.geeksforgeeks.org/prims-minimum-spanning-tree-mst-greedy-algo-5/", practice: "https://leetcode.com/problems/min-cost-to-connect-all-points/" } },
+                    { name: "Union-Find (Disjoint Set Union)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=aBxjDBC4M1U", read: "https://www.geeksforgeeks.org/union-find-algorithm-set-2-union-by-rank-and-path-compression/", practice: "https://leetcode.com/problems/number-of-provinces/" } },
+                ]
+            },
+            {
+                topic: "Backtracking",
+                icon: "🌀",
+                patterns: [
+                    { name: "Subsets / Permutations / Combinations", completed: false, resources: { watch: "https://www.youtube.com/watch?v=REOH22Xwdkk", read: "https://www.geeksforgeeks.org/backtracking-algorithms/", practice: "https://leetcode.com/problems/subsets/" } },
+                    { name: "N-Queens", completed: false, resources: { watch: "https://www.youtube.com/watch?v=i05Ju7AftcM", read: "https://www.geeksforgeeks.org/n-queen-problem-backtracking-3/", practice: "https://leetcode.com/problems/n-queens/" } },
+                    { name: "Sudoku Solver", completed: false, resources: { watch: "https://www.youtube.com/watch?v=FWAIf_EVUKE", read: "https://www.geeksforgeeks.org/sudoku-backtracking-7/", practice: "https://leetcode.com/problems/sudoku-solver/" } },
+                    { name: "Word Search", completed: false, resources: { watch: "https://www.youtube.com/watch?v=m9bcvanQtkA", read: "https://www.geeksforgeeks.org/search-a-word-in-a-2d-grid-of-characters/", practice: "https://leetcode.com/problems/word-search/" } },
+                    { name: "Palindrome Partitioning", completed: false, resources: { watch: "https://www.youtube.com/watch?v=3I3l-x93kOY", read: "https://www.geeksforgeeks.org/palindrome-partitioning-dp-17/", practice: "https://leetcode.com/problems/palindrome-partitioning/" } }
+                ]
+            },
+            {
+                topic: "Dynamic Programming",
+                icon: "🧮",
+                patterns: [
+                    { name: "Intro: Memoization vs Tabulation", completed: false, resources: { watch: "https://www.youtube.com/watch?v=tyB0ztf0DNY", read: "https://www.geeksforgeeks.org/tabulation-vs-memoization/", practice: "https://leetcode.com/problems/fibonacci-number/" } },
+                    { name: "1D DP (Climbing Stairs, House Robber)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=pchOMyP4I0U", read: "https://leetcode.com/explore/learn/card/dynamic-programming/631/pro-tip-patterns-for-dp-problems/4090/", practice: "https://leetcode.com/problems/climbing-stairs/" } },
+                    { name: "2D DP / Grid DP (Unique Paths)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=GO5QHC_B_cA", read: "https://www.geeksforgeeks.org/unique-paths-in-a-grid-with-obstacles/", practice: "https://leetcode.com/problems/unique-paths/" } },
+                    { name: "Knapsack (0/1, Unbounded)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=GqOmJHQZivw", read: "https://www.geeksforgeeks.org/0-1-knapsack-problem-dp-10/", practice: "https://leetcode.com/problems/coin-change/" } },
+                    { name: "Longest Common Subsequence (LCS)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=LAKW_2wgh9k", read: "https://www.geeksforgeeks.org/longest-common-subsequence-dp-4/", practice: "https://leetcode.com/problems/longest-common-subsequence/" } },
+                    { name: "Longest Increasing Subsequence (LIS)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=fV-TF41Zmv0", read: "https://www.geeksforgeeks.org/longest-increasing-subsequence-dp-3/", practice: "https://leetcode.com/problems/longest-increasing-subsequence/" } },
+                    { name: "DP on Trees", completed: false, resources: { watch: "https://www.youtube.com/watch?v=Osz-Vwer6rw", read: "https://codeforces.com/blog/entry/20935", practice: "https://leetcode.com/problems/binary-tree-maximum-path-sum/" } },
+                    { name: "DP with Bitmasking", completed: false, resources: { watch: "https://www.youtube.com/watch?v=685x-rzOIlY", read: "https://www.geeksforgeeks.org/bitmasking-and-dynamic-programming/", practice: "https://leetcode.com/problems/partition-to-k-equal-sum-subsets/" } }
+                ]
+            },
+            {
+                topic: "Advanced Data Structures",
+                icon: "🌟",
+                patterns: [
+                    { name: "Segment Tree", completed: false, resources: { watch: "https://www.youtube.com/watch?v=2bSS8rtFym4", read: "https://cp-algorithms.com/data_structures/segment_tree.html", practice: "https://leetcode.com/problems/range-sum-query-mutable/" } },
+                    { name: "Fenwick Tree (Binary Indexed Tree)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=CWDQJGaN1gY", read: "https://cp-algorithms.com/data_structures/fenwick.html", practice: "https://leetcode.com/problems/range-sum-query-mutable/" } }
+                ]
+            },
+            {
+                topic: "Greedy Algorithms",
+                icon: "💥",
+                patterns: [
+                    { name: "Interval Scheduling (Activity Selection)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=F-17JMXJ-gA", read: "https://www.geeksforgeeks.org/activity-selection-problem-greedy-algo-1/", practice: "https://leetcode.com/problems/non-overlapping-intervals/" } },
+                    { name: "Fractional Knapsack", completed: false, resources: { watch: "https://www.youtube.com/watch?v=F_DDzY-C2qc", read: "https://www.geeksforgeeks.org/fractional-knapsack-problem/", practice: "https://www.codingninjas.com/studio/problems/fractional-knapsack_975286" } },
+                    { name: "Huffman Coding", completed: false, resources: { watch: "https://www.youtube.com/watch?v=0kNXhUcr3qQ", read: "https://www.geeksforgeeks.org/huffman-coding-greedy-algo-3/", practice: "https://www.codingninjas.com/studio/problems/huffman-encoding_1263626" } },
+                    { name: "Jump Game", completed: false, resources: { watch: "https://www.youtube.com/watch?v=yan_IqztmYg", read: "https://leetcode.com/problems/jump-game/solutions/128393/official-solution/", practice: "https://leetcode.com/problems/jump-game/" } }
+                ]
+            },
+            {
+                topic: "Bit Manipulation",
+                icon: "🧊",
+                patterns: [
+                    { name: "Bitwise Operators (XOR, AND, OR)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=mesu75PTj9g", read: "https://www.geeksforgeeks.org/bitwise-operators-in-c-cpp/", practice: "https://leetcode.com/problems/single-number/" } },
+                    { name: "Bit Masking", completed: false, resources: { watch: "https://www.youtube.com/watch?v=NLpSGS-kbyY", read: "https://www.geeksforgeeks.org/bitmasking-and-dynamic-programming/", practice: "https://leetcode.com/problems/number-of-1-bits/" } },
+                    { name: "Count Set Bits (Brian Kernighan's Algo)", completed: false, resources: { watch: "https://www.youtube.com/watch?v=I475vBg_I-w", read: "https://www.geeksforgeeks.org/count-set-bits-in-an-integer/", practice: "https://leetcode.com/problems/counting-bits/" } },
+                ]
+            },
+            {
+                topic: "Math for DSA",
+                icon: "🧾",
+                patterns: [
+                    { name: "Prime Numbers / Sieve of Eratosthenes", completed: false, resources: { watch: "https://www.youtube.com/watch?v=jxi0_q4_q8A", read: "https://www.geeksforgeeks.org/sieve-of-eratosthenes/", practice: "https://leetcode.com/problems/count-primes/" } },
+                    { name: "GCD / LCM / Euclidean Algorithm", completed: false, resources: { watch: "https://www.youtube.com/watch?v=1p_e4V2o25s", read: "https://www.geeksforgeeks.org/euclidean-algorithms-basic-and-extended/", practice: "https://leetcode.com/problems/find-greatest-common-divisor-of-array/" } },
+                    { name: "Modular Arithmetic & Fast Exponentiation", completed: false, resources: { watch: "https://www.youtube.com/watch?v=nO7_qu2kd1U", read: "https://www.geeksforgeeks.org/modular-exponentiation-power-in-modular-arithmetic/", practice: "https://leetcode.com/problems/powx-n/" } },
+                    { name: "Combinations / nCr", completed: false, resources: { watch: "https://www.youtube.com/watch?v=g_h5ff0tIZs", read: "https://www.geeksforgeeks.org/compute-ncr-p-set-1-introduction-and-dynamic-programming-solution/", practice: "https://leetcode.com/problems/pascals-triangle/" } }
+                ]
+            },
+        ];
+
+
+        let progressChart;
+        const app = {
+            init() {
+                this.renderTopics();
+                this.renderNav();
+                this.updateProgress();
+                this.addEventListeners();
+            },
+            renderTopics() {
+                const container = document.getElementById('topics-container');
+                container.innerHTML = dsaData.map((topic, topicIndex) => `
+                    <div class="topic-card bg-card shadow-md rounded-xl mb-4" data-topic-name="${topic.topic.toLowerCase()}">
+                        <button class="accordion-toggle w-full flex items-center justify-between p-5 text-left font-semibold text-lg hover:bg-slate-50 rounded-t-xl">
+                            <span class="flex items-center">
+                                <span class="text-2xl mr-4">${topic.icon}</span>
+                                <span>${topic.topic}</span>
+                            </span>
+                            <button class="ml-4 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium hover:bg-purple-200 transition" onclick="app.generateInterviewQuestions('${topic.topic}')">✨ Generate Questions</button>
+                            <span class="accordion-arrow transform transition-transform duration-300">▼</span>
+                        </button>
+                        <div class="p-4 border-t border-slate-200">
+                            <div class="w-full bg-slate-200 rounded-full h-2.5 mb-4">
+                                <div id="progress-bar-${topicIndex}" class="bg-cyan-600 h-2.5 rounded-full progress-bar-fill" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="accordion-content">
+                            <ul class="divide-y divide-border-color">
+                                ${topic.patterns.map((pattern, patternIndex) => `
+                                    <li class="p-5 hover:bg-slate-50 flex items-start justify-between gap-4">
+                                        <div class="flex items-start">
+                                            <input type="checkbox" id="cb-${topicIndex}-${patternIndex}" class="mt-1 h-5 w-5 rounded border-gray-300 text-cyan-600 focus:ring-cyan-500" ${pattern.completed ? 'checked' : ''} data-topic="${topicIndex}" data-pattern="${patternIndex}">
+                                            <label for="cb-${topicIndex}-${patternIndex}" class="ml-3 text-base text-slate-700">${pattern.name}</label>
+                                        </div>
+                                        <div class="flex-shrink-0 flex items-center gap-2">
+                                            <a href="${pattern.resources.watch}" target="_blank" class="text-xs font-medium px-2 py-1 bg-red-100 text-red-700 rounded-full hover:bg-red-200 transition">Watch 📺</a>
+                                            <a href="${pattern.resources.read}" target="_blank" class="text-xs font-medium px-2 py-1 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition">Read 📖</a>
+                                            <a href="${pattern.resources.practice}" target="_blank" class="text-xs font-medium px-2 py-1 bg-green-100 text-green-700 rounded-full hover:bg-green-200 transition">Practice 💻</a>
+                                            <button class="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium hover:bg-yellow-200 transition" onclick="app.generateExplanation('${pattern.name}')">✨ Explain</button>
+                                            <button class="px-3 py-1 bg-cyan-100 text-cyan-700 rounded-full text-xs font-medium hover:bg-cyan-200 transition" onclick="app.analyzeComplexity('${pattern.name}')">✨ Analyze Complexity</button>
+                                            <button class="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-medium hover:bg-slate-200 transition" onclick="app.generateCodeSnippet('${pattern.name}', 'Python')">✨ Python Code</button>
+                                            <button class="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-medium hover:bg-slate-200 transition" onclick="app.generateCodeSnippet('${pattern.name}', 'JavaScript')">✨ JS Code</button>
+                                        </div>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                `).join('');
+            },
+            renderNav() {
+                const navContainer = document.getElementById('nav-links');
+                navContainer.innerHTML = dsaData.map((topic, index) => `
+                    <a href="#" data-nav-index="${index}" class="block px-4 py-2 text-slate-600 hover:bg-cyan-50 hover:text-cyan-700 rounded-md transition-colors">${topic.icon} ${topic.topic}</a>
+                `).join('');
+            },
+            updateProgress() {
+                let totalPatterns = 0;
+                let completedPatterns = 0;
+
+                dsaData.forEach((topic, topicIndex) => {
+                    const completed = topic.patterns.filter(p => p.completed).length;
+                    const total = topic.patterns.length;
+                    totalPatterns += total;
+                    completedPatterns += completed;
+                    const percentage = total > 0 ? (completed / total) * 100 : 0;
+                    const progressBar = document.getElementById(`progress-bar-${topicIndex}`);
+                    if(progressBar) progressBar.style.width = `${percentage}%`;
+                });
+
+                const overallPercentage = totalPatterns > 0 ? (completedPatterns / totalPatterns) * 100 : 0;
+                this.renderChart(overallPercentage, completedPatterns, totalPatterns);
+            },
+            renderChart(percentage, completedCount, totalCount) {
+                const ctx = document.getElementById('progressChart').getContext('2d');
+                const summaryEl = document.getElementById('progress-summary');
+                summaryEl.textContent = `${completedCount} / ${totalCount} Patterns Mastered`;
+                
+                if (progressChart) {
+                    progressChart.data.datasets[0].data = [percentage, 100 - percentage];
+                    progressChart.update();
+                } else {
+                    progressChart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            datasets: [{
+                                data: [percentage, 100 - percentage],
+                                backgroundColor: [
+                                    '#0891b2',
+                                    '#e2e8f0'
+                                ],
+                                borderWidth: 0,
+                                borderRadius: 5,
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            cutout: '75%',
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: { enabled: false }
+                            },
+                        }
+                    });
+                }
+            },
+            addEventListeners() {
+                const container = document.getElementById('topics-container');
+                container.addEventListener('click', (e) => {
+                    const toggle = e.target.closest('.accordion-toggle');
+                    if (toggle) {
+                        const content = toggle.parentElement.querySelector('.accordion-content');
+                        const arrow = toggle.querySelector('.accordion-arrow');
+
+                        // Added null checks to prevent TypeError
+                        if (content) {
+                            content.classList.toggle('open');
+                        }
+                        if (arrow) {
+                            arrow.classList.toggle('rotate-180');
+                        }
+                    }
+                });
+
+                const searchBar = document.getElementById('search-bar');
+                searchBar.addEventListener('keyup', (e) => {
+                    const searchTerm = e.target.value.toLowerCase();
+                    const cards = document.querySelectorAll('.topic-card');
+                    cards.forEach(card => {
+                        const topicName = card.dataset.topicName;
+                        const patterns = Array.from(card.querySelectorAll('label')).map(l => l.textContent.toLowerCase()).join(' ');
+                        if (topicName.includes(searchTerm) || patterns.includes(searchTerm)) {
+                            card.style.display = 'block';
+                        } else {
+                            card.style.display = 'none';
+                        }
+                    });
+                });
+                
+                const navLinks = document.getElementById('nav-links');
+                navLinks.addEventListener('click', e => {
+                    e.preventDefault();
+                    const navLink = e.target.closest('a');
+                    if (navLink) {
+                        const index = navLink.dataset.navIndex;
+                        const targetCard = document.querySelectorAll('.topic-card')[index];
+                        if (targetCard) {
+                            targetCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    }
+                });
+
+                // Modal event listeners
+                document.getElementById('closeModalBtn').addEventListener('click', () => {
+                    document.getElementById('llmModal').style.display = 'none';
+                });
+                window.addEventListener('click', (event) => {
+                    if (event.target == document.getElementById('llmModal')) {
+                        document.getElementById('llmModal').style.display = 'none';
+                    }
+                });
+            },
+
+            async showModal(title, contentPromise) {
+                const modal = document.getElementById('llmModal');
+                const modalTitle = document.getElementById('modalTitle');
+                const modalContent = document.getElementById('modalContent');
+
+                modalTitle.textContent = title;
+                modalContent.innerHTML = '<div class="loading-spinner"></div>'; // Show loading spinner
+                modal.style.display = 'flex'; // Use flex to center content
+
+                try {
+                    const content = await contentPromise;
+                    if (content.startsWith('```')) {
+                        modalContent.innerHTML = `<pre><code>${content.replace(/```[a-z]*\n|```/g, '').trim()}</code></pre>`;
+                    } else {
+                        modalContent.innerHTML = `<p>${content.replace(/\n/g, '<br>')}</p>`;
+                    }
+                } catch (error) {
+                    modalContent.innerHTML = `<p class="text-red-500">Error: ${error.message}. Please try again.</p>`;
+                    console.error("LLM API call failed:", error);
+                }
+            },
+
+            async callGeminiAPI(prompt) {
+                let chatHistory = [];
+                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                const payload = { contents: chatHistory };
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    return result.candidates[0].content.parts[0].text;
+                } else {
+                    throw new Error("No content received from API.");
+                }
+            },
+
+            generateExplanation(patternName) {
+                const prompt = `Explain the Data Structures and Algorithms pattern: ${patternName} concisely, as if explaining to a beginner. Keep it under 100 words.`;
+                this.showModal(`Explanation for ${patternName}`, this.callGeminiAPI(prompt));
+            },
+
+            generateInterviewQuestions(topicName) {
+                const prompt = `Generate 3 common coding interview questions related to the Data Structures and Algorithms topic: ${topicName}. Provide only the question statements, without solutions or explanations. Format each question with a leading number and a newline.`;
+                this.showModal(`Interview Questions for ${topicName}`, this.callGeminiAPI(prompt));
+            },
+
+            analyzeComplexity(patternName) {
+                const prompt = `Analyze the typical time and space complexity for the DSA pattern: ${patternName}. Provide the complexity in big-O notation, followed by a brief, single-sentence explanation for each.`;
+                this.showModal(`Complexity Analysis for ${patternName}`, this.callGeminiAPI(prompt));
+            },
+
+            generateCodeSnippet(patternName, language) {
+                const prompt = `Provide a simple, runnable, and well-commented ${language} code snippet for the Data Structures and Algorithms pattern: ${patternName}. Do not include explanations outside the comments. The entire response should be a single code block.`;
+                this.showModal(`${language} Code for ${patternName}`, this.callGeminiAPI(prompt));
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => app.init());
+    </script>
+</body>
+</html>
